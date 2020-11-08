@@ -16,7 +16,6 @@ def findShpaes(img_path):
     ret, thresh = cv2.threshold(gray, 240, 255, cv2.CHAIN_APPROX_NONE)
     contours, h = cv2.findContours(thresh, cv2.RETR_TREE,
                                    cv2.CHAIN_APPROX_NONE)
-
     return img, contours
 
 
