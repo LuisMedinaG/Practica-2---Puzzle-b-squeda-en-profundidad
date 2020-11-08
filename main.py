@@ -76,22 +76,20 @@ def makeGraph(red_contours, black_contours):
     return vertex_list
 
 
-def findObstacles(vertex_list, img, img2):
+def findObstacles(vertex_list, img):
     for origen in vertex_list:
         for destino in vertex_list:
             if origen != destino and destino not in origen.lista_adyancecia:
-                if areConectable(origen, destino, img, img2):
+                if areConectable(origen, destino, img):
                     origen.lista_adyancecia.append(destino)
                     destino.lista_adyancecia.append(origen)
-                # break
-        # break
 
 
 def hypot(x1, y1, x2, y2):
     return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
 
 
-def areConectable(origen, destino, img, img2):
+def areConectable(origen, destino, img):
     pt_a = np.array([origen.x, origen.y])
     pt_b = np.array([destino.x, destino.y])
     dist = int(hypot(origen.x, origen.y, destino.x, destino.y))
@@ -102,12 +100,9 @@ def areConectable(origen, destino, img, img2):
             continue
         x = int(point[0])
         y = int(point[1])
-        try:
-            cv2.circle(img2, (x, y), 0, (0, 255, 255), 1)
-            r, g, b = img[y][x]
-            if isBlack(r, g, b):
-                return False
-        except Exception as e:
+
+        r, g, b = img[y][x]
+        if isBlack(r, g, b):
             return False
     return True
 
@@ -166,23 +161,18 @@ def printLines(vertex_list, img):
 def main():
     path = 'aima_maze.png'
     img = cv2.imread(path)
-    img2 = copy.deepcopy(img)
-    # img2 = cv2.resize(img, (700, 500))
+    img = cv2.resize(img, (700, 500))
 
     red_contours, black_contours = findShapes(img)
     vertex_list = makeGraph(red_contours, black_contours)
 
     if vertex_list:
-        findObstacles(vertex_list, img, img2)
+        findObstacles(vertex_list, img)
         printLines(vertex_list, img)
 
-        cv2.imwrite('output.png', img)
-        # cv2.imwrite('test.png', img2)
-
-        # cv2.imshow(path,img)
-        # cv2.imshow(path,img2)
-        # cv2.waitKey(0)
-        # cv2.destroyAllWindows()
+        cv2.imshow(path,img)
+        cv2.waitKey(0)
+        cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
