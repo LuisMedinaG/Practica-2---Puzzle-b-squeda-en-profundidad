@@ -16,7 +16,7 @@ class vertex:
         return self.x == other.x and self.y == other.y
 
     def __str__(self):
-        return f"({self.x},{self.y})"
+        return f"{self.id} ({self.x},{self.y})"
 
     def __repr__(self):
         return f"({self.x},{self.y})"
@@ -89,7 +89,7 @@ def makeGraph(red_contours, black_contours):
 
 def findObstacles(vertex_list, img):
     for origen in vertex_list:
-        cv2.putText(img, origen.id, (origen.x, origen.y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 1)
+        cv2.putText(img, origen.id, (origen.x, origen.y), cv2.FONT_HERSHEY_SIMPLEX, .4, (0,255,0), 1)
 
         for destino in vertex_list:
             if origen != destino and destino not in origen.lista_adyancecia:
@@ -135,19 +135,19 @@ def dfs(root, goal):
             visited.add(vertex.id)
             for neighbor in reversed(vertex.lista_adyancecia):
                 stack.append((neighbor, path + [neighbor.id]))
-    return None
+    return []
 
 
 def toDict(vertex_list):
     #g = Graph()
     graph = {}
     for vertex in vertex_list:
-        ver = vertex
-        print(vertex)
+        ver = vertex.id
+        #print(vertex.id)
         for adyacente in vertex.lista_adyancecia:
-            print(adyacente)
+            print("ad", adyacente)
             ady = adyacente
-            #graph["V" + str(ver)] = str(ady)
+            #graph[] = str(ady)
             #print("Vertex ", ver)
             #print("Ady ",ady)
             #g.addEdge(ver,ady)
@@ -177,17 +177,25 @@ def IDDFS(lista, root, target, maxDepth):
     return False
 
 
-def drawLines(vertex_list, img):
-    for i, vertex in enumerate(vertex_list):
-        # Cambiar por destino
+def drawLines(vertex_list, id_list, img):
+    for i, vertex in enumerate(id_list):
+        if i == len(id_list) - 1:
+            break
+        j = int(vertex)
+        k = int(id_list[i+1])
+        
+        curr = vertex_list[j]
+        next_v = vertex_list[k]
+
         cv2.line(
-            img, (vertex.x, vertex.y), (vertex.x, vertex.y), (0, 255, 0),
-            thickness=1)
+            img, (curr.x, curr.y), (next_v.x, next_v.y), (0, 255, 0),
+            thickness=2)
+        # break
 
 
 def main():
-    path = 'aima_maze.png'
-    img = cv2.imread(path)
+    img_path = 'aima_maze.png'
+    img = cv2.imread(img_path)
     img = cv2.resize(img, (700, 500))
 
     red_contours, black_contours = findShapes(img)
@@ -201,16 +209,17 @@ def main():
         target = vertex_list[1]
 
         # Implenetacion del algoritmo DFS
-        # path = dfs(root, target)
-        # print(path)
-        # drawLines(path, img)
+        path = dfs(root, target)
+        print(path)
+        drawLines(vertex_list, path, img)
 
         # Implenetacion del algoritmo IDDFS
-        ad_list = toDict(vertex_list)
-        print(ad_list)
-        IDDFS(ad_list, root, target, 1000)
+        # ad_list = toDict(vertex_list)
+        # print(ad_list)
+        # ya nomas queria imprimir la imagen con los ids :)
+        # IDDFS(ad_list, root, target, 1000)
 
-        cv2.imshow(path, img)
+        cv2.imshow(img_path, img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
