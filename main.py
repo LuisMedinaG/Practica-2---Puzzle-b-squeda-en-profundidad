@@ -1,13 +1,15 @@
 import numpy as np
+from collections import defaultdict
 import math
 import cv2
 import copy
 
 
 class vertex:
-    def __init__(self, x_, y_):
-        self.x = x_
-        self.y = y_
+    def __init__(self, id, x, y):
+        self.id = str(id)
+        self.x = x
+        self.y = y
         self.lista_adyancecia = []
 
     def __eq__(self, other):
@@ -18,6 +20,15 @@ class vertex:
 
     def __repr__(self):
         return f"({self.x},{self.y})"
+
+
+class Graph:
+    def __init__(self):
+        #self.V = vertices
+        self.graph = defaultdict(list)
+
+    def addEdge(self, u, v):
+        self.graph[u].append(v)
 
 
 def findShapes(img):
@@ -42,14 +53,14 @@ def findShapes(img):
 
 def makeGraph(red_contours, black_contours):
     vertex_list = []
-
+    
     if red_contours:
         org = red_contours[0]
         approx = cv2.approxPolyDP(org, 0.009 * cv2.arcLength(org, True), True)
         n = approx.ravel()
         x = n[-6]
         y = n[-5]
-        nodo = vertex(x, y)
+        nodo = vertex(len(vertex_list), x, y)
         vertex_list.append(nodo)
 
         des = red_contours[1]
@@ -57,7 +68,7 @@ def makeGraph(red_contours, black_contours):
         n = approx.ravel()
         x = n[-2]
         y = n[-1]
-        nodo = vertex(x, y)
+        nodo = vertex(len(vertex_list), x, y)
         vertex_list.append(nodo)
 
     for cnt in black_contours:
@@ -69,7 +80,7 @@ def makeGraph(red_contours, black_contours):
             if (i % 2 == 0):
                 x = n[i]
                 y = n[i + 1]
-                nodo = vertex(x, y)
+                nodo = vertex(len(vertex_list), x, y)
                 vertex_list.append(nodo)
             i = i + 1
 
@@ -78,6 +89,8 @@ def makeGraph(red_contours, black_contours):
 
 def findObstacles(vertex_list, img):
     for origen in vertex_list:
+        cv2.putText(img, origen.id, (origen.x, origen.y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 1)
+
         for destino in vertex_list:
             if origen != destino and destino not in origen.lista_adyancecia:
                 if areConectable(origen, destino, img):
@@ -112,50 +125,64 @@ def isBlack(r, g, b):
 
 
 def dfs(root, goal):
+    stack = [(root, [root.id])]
     visited = set()
-    stack = list(root)
     while stack:
-        node = stack.pop()
-        visited.add(node)
-
-        if node == goal:
-            return stack
-
-        neighbours = reversed(node.lista_adyancecia)
-        for curr in neighbours:
-            if curr not in visited:
-                stack.append(curr)
-                visited.add(curr)
+        (vertex, path) = stack.pop()
+        if vertex.id not in visited:
+            if vertex == goal:
+                return path
+            visited.add(vertex.id)
+            for neighbor in reversed(vertex.lista_adyancecia):
+                stack.append((neighbor, path + [neighbor.id]))
+    return None
 
 
-def DLS(self, root, target, maxDepth):
+def toDict(vertex_list):
+    #g = Graph()
+    graph = {}
+    for vertex in vertex_list:
+        ver = vertex
+        print(vertex)
+        for adyacente in vertex.lista_adyancecia:
+            print(adyacente)
+            ady = adyacente
+            #graph["V" + str(ver)] = str(ady)
+            #print("Vertex ", ver)
+            #print("Ady ",ady)
+            #g.addEdge(ver,ady)
+    #return g.graph
+    print(graph)
 
+
+def DLS(lista, root, target, maxDepth):
+    path = set()
     if root == target: return True
 
     if maxDepth <= 0: return False
 
-    for i in self.lista_adyancecia[root]:
-        print('i =  %d / target = %d / maxDepth = %d' % (i, target,
-                                                         maxDepth - 1))
-        if (self.DLS(i, target, maxDepth - 1)):
+    for i in lista[root]:
+        path.add(i)
+        #print('i =  %d / target = %d / maxDepth = %d' % (i, target, maxDepth - 1))
+        if (DLS(lista, i, target, maxDepth - 1)):
             return True
+    #print(path)
     return False
 
 
-def IDDFS(self, root, target, maxDepth):
-
+def IDDFS(lista, root, target, maxDepth):
     for i in range(maxDepth):
-        if (self.DLS(root, target, i)):
+        if (DLS(lista, root, target, i)):
             return True
     return False
 
 
-def printLines(vertex_list, img):
-    for v_ori in vertex_list:
-        for v_des in v_ori.lista_adyancecia:
-            cv2.line(
-                img, (v_ori.x, v_ori.y), (v_des.x, v_des.y), (0, 255, 0),
-                thickness=1)
+def drawLines(vertex_list, img):
+    for i, vertex in enumerate(vertex_list):
+        # Cambiar por destino
+        cv2.line(
+            img, (vertex.x, vertex.y), (vertex.x, vertex.y), (0, 255, 0),
+            thickness=1)
 
 
 def main():
@@ -166,11 +193,24 @@ def main():
     red_contours, black_contours = findShapes(img)
     vertex_list = makeGraph(red_contours, black_contours)
 
-    if vertex_list:
+    if vertex_list and red_contours:
         findObstacles(vertex_list, img)
-        printLines(vertex_list, img)
 
-        cv2.imshow(path,img)
+        # ORIGEN Y DESTINO DEL MAPA
+        root = vertex_list[0]
+        target = vertex_list[1]
+
+        # Implenetacion del algoritmo DFS
+        # path = dfs(root, target)
+        # print(path)
+        # drawLines(path, img)
+
+        # Implenetacion del algoritmo IDDFS
+        ad_list = toDict(vertex_list)
+        print(ad_list)
+        IDDFS(ad_list, root, target, 1000)
+
+        cv2.imshow(path, img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
 
