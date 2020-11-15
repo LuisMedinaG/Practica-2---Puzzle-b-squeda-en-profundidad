@@ -23,12 +23,15 @@ class vertex:
 
 
 class Graph:
-    def __init__(self):
+    def __init__(self, vertices):
         #self.V = vertices
         self.graph = defaultdict(list)
 
+        for v in vertices:
+            self.graph[v.id] = [[], set()]
+
     def addEdge(self, u, v):
-        self.graph[u].append(v)
+        self.graph[u][0].append(v)
 
 
 def findShapes(img):
@@ -53,7 +56,7 @@ def findShapes(img):
 
 def makeGraph(red_contours, black_contours):
     vertex_list = []
-    
+
     if red_contours:
         org = red_contours[0]
         approx = cv2.approxPolyDP(org, 0.009 * cv2.arcLength(org, True), True)
@@ -89,8 +92,9 @@ def makeGraph(red_contours, black_contours):
 
 def findObstacles(vertex_list, img):
     for origen in vertex_list:
-        cv2.putText(img, origen.id, (origen.x, origen.y), cv2.FONT_HERSHEY_SIMPLEX, .4, (0,255,0), 1)
-
+        center = (origen.x, origen.y)
+        cv2.putText(img, origen.id, center, cv2.FONT_HERSHEY_SIMPLEX, .4,
+                    (255, 0, 0), 1)
         for destino in vertex_list:
             if origen != destino and destino not in origen.lista_adyancecia:
                 if areConectable(origen, destino, img):
@@ -109,7 +113,7 @@ def areConectable(origen, destino, img):
     line = np.linspace(pt_a, pt_b, int(dist / 3), dtype="int")
 
     for i, point in enumerate(line):
-        if i <= 3 or i > len(line) - 3:
+        if i <= 2 or i > len(line) - 2:
             continue
         x = int(point[0])
         y = int(point[1])
@@ -121,7 +125,7 @@ def areConectable(origen, destino, img):
 
 
 def isBlack(r, g, b):
-    return r < 50 and g < 50 and b < 50
+    return r < 150 and g < 150 and b < 150
 
 
 def dfs(root, goal):
@@ -139,34 +143,26 @@ def dfs(root, goal):
 
 
 def toDict(vertex_list):
-    #g = Graph()
-    graph = {}
+    g = Graph(vertex_list)
     for vertex in vertex_list:
         ver = vertex.id
-        #print(vertex.id)
         for adyacente in vertex.lista_adyancecia:
-            print("ad", adyacente)
-            ady = adyacente
-            #graph[] = str(ady)
-            #print("Vertex ", ver)
-            #print("Ady ",ady)
-            #g.addEdge(ver,ady)
-    #return g.graph
-    print(graph)
+            ady = adyacente.id
+            g.addEdge(ver, ady)
+    return g.graph
 
 
 def DLS(lista, root, target, maxDepth):
-    path = set()
-    if root == target: return True
+    if root == target:
+        return True
+    if maxDepth <= 0:
+        return False
 
-    if maxDepth <= 0: return False
-
-    for i in lista[root]:
-        path.add(i)
-        #print('i =  %d / target = %d / maxDepth = %d' % (i, target, maxDepth - 1))
+    for i in lista[root][0]:
+        lista[root][1].add(i)
         if (DLS(lista, i, target, maxDepth - 1)):
+            print(lista[root][1])
             return True
-    #print(path)
     return False
 
 
@@ -177,26 +173,27 @@ def IDDFS(lista, root, target, maxDepth):
     return False
 
 
-def drawLines(vertex_list, id_list, img):
-    for i, vertex in enumerate(id_list):
-        if i == len(id_list) - 1:
+def drawLines(vertex_list, path, img):
+    for i, id in enumerate(path):
+        if i == len(path) - 1:
             break
-        j = int(vertex)
-        k = int(id_list[i+1])
-        
+        j = int(id)
+        k = int(path[i + 1])
+
         curr = vertex_list[j]
         next_v = vertex_list[k]
 
-        cv2.line(
-            img, (curr.x, curr.y), (next_v.x, next_v.y), (0, 255, 0),
-            thickness=2)
-        # break
+        center = (curr.x, curr.y)
+        green = (0, 255, 0)
+        cv2.line(img, center, (next_v.x, next_v.y), green, thickness=1)
+        cv2.circle(img, center, 2, (0, 255, 255), thickness=2)
 
 
 def main():
     img_path = 'aima_maze.png'
     img = cv2.imread(img_path)
     img = cv2.resize(img, (700, 500))
+    img2 = copy.deepcopy(img)
 
     red_contours, black_contours = findShapes(img)
     vertex_list = makeGraph(red_contours, black_contours)
@@ -210,18 +207,17 @@ def main():
 
         # Implenetacion del algoritmo DFS
         path = dfs(root, target)
+        print("PATH DE DFS: ")
         print(path)
         drawLines(vertex_list, path, img)
+        cv2.imwrite('dfs.png', img)
 
         # Implenetacion del algoritmo IDDFS
-        # ad_list = toDict(vertex_list)
-        # print(ad_list)
-        # ya nomas queria imprimir la imagen con los ids :)
-        # IDDFS(ad_list, root, target, 1000)
-
-        cv2.imshow(img_path, img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+        ad_list = toDict(vertex_list)
+        print("PATH DE DFS ITERATIVA: ")
+        IDDFS(ad_list, root.id, target.id, 200)
+        drawLines(vertex_list, path, img2)
+        cv2.imwrite('iddfs.png', img2)
 
 
 if __name__ == '__main__':
