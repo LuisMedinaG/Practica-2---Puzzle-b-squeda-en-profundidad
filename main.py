@@ -10,6 +10,7 @@ class Vertex:
         self.y = y
         self.neighbors = []
         self.distance = -1
+        self.curr_dist = math.inf
         self.previous = None
 
     def __eq__(self, other):
@@ -24,11 +25,8 @@ class Vertex:
     def addVertex(self, vertex):
         self.neighbors.append(vertex)
 
-    def getNeighbors(self):
-        return self.neighbors
-
-    def getDistance(self, x2, y2):
-        return math.sqrt((x2 - self.x)**2 + (y2 - self.y)**2)
+    def getDistance(self, other_vertex):
+        return math.sqrt((other_vertex.x - self.x)**2 + (other_vertex.y - self.y)**2)
 
     def getPos(self):
         return (self.x, self.y)
@@ -82,12 +80,9 @@ class ShapeDetector:
     def areConnectable(self, vertex1, vertex2, r=10):
         pt_a = np.array([vertex1.x, vertex1.y])
         pt_b = np.array([vertex2.x, vertex2.y])
-        dist = int(vertex1.getDistance(vertex2.x, vertex2.y))
+        dist = int(vertex1.getDistance(vertex2))
         line = np.linspace(pt_a, pt_b, int(dist / 2), dtype="int")
         
-        vertex1.distance = dist
-        vertex2.distance = dist
-
         for i, point in enumerate(line):
             x = int(point[0])
             y = int(point[1])
@@ -109,46 +104,41 @@ class ShapeDetector:
         for i, vert_id in enumerate(path):
             if i == len(path) - 1:
                 break
-
             org = self.vertex_list[vert_id]
             des = self.vertex_list[path[i + 1]]
 
+            midX = int((org.x + des.x) / 2)
+            midY = int((org.y + des.y) / 2)
+            dist = str(int(org.getDistance(des)))
+
             cv2.line(self.img, org.getPos(), des.getPos(), (0, 255, 0), thickness=1)
             cv2.circle(self.img, org.getPos(), 2, (0, 255, 255), thickness=2)
+            cv2.putText(self.img, dist, (midX, midY), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (184, 84, 39), 2)
 
     def isBlack(self, r, g, b):
         return r < 150 and g < 150 and b < 150
 
-
-def shortestPathBFS(vertex):
+def shortestPathBFS(start):
     """
     Shortest Path - Breadth First Search
-    :param vertex: the starting graph node
-    :return: does not return, changes in place
     """
-    if vertex is None:
-        return
+    if start is None:
+        return None
 
-    queue = []                  # our queue is a list with insert(0) as enqueue() and pop() as dequeue()
-    queue.insert(0, vertex)
+    # keep track of nodes to be checked
+    queue = [start]
+    start.curr_dist = 0
 
-    while len(queue) > 0:
-        current_vertex = queue.pop()                    # remove the next node in the queue
-        next_distance = current_vertex.distance + 1     # the hypothetical distance of the neighboring node
-
-        for neighbor in current_vertex.getNeighbors():
-            if neighbor.distance == -1 or neighbor.distance > next_distance:    # try to minimize node distance
-                neighbor.distance = next_distance       # distance is changed only if its shorter than the current
-                neighbor.previous = current_vertex      # keep a record of previous vertexes so we can traverse our path
-                queue.insert(0, neighbor)
-
+    while queue:
+        curr = queue.pop()
+        for neighbor in curr.neighbors:
+            next_distance = curr.curr_dist + curr.getDistance(neighbor)
+            if neighbor.curr_dist == math.inf or  neighbor.curr_dist > next_distance:
+                neighbor.curr_dist = next_distance
+                neighbor.previous = curr
+                queue.insert(0, neighbor)        
 
 def traverseShortestPath(target):
-    """
-    Traverses backward from target vertex to source vertex, storing all encountered vertex id's
-    :param target: Vertex() Our target node
-    :return: A list of all vertexes in the shortest path
-    """
     vertexes_in_path = []
 
     while target.previous:
@@ -157,9 +147,8 @@ def traverseShortestPath(target):
 
     return vertexes_in_path
 
-
 def main():
-    image_filename = 'aima_maze.png'
+    image_filename = 'aima_maze_modified.png'
     sD = ShapeDetector(image_filename)
 
     # RGB value range of red and black objects
@@ -176,19 +165,16 @@ def main():
     source = sD.vertex_list[0]
     target = sD.vertex_list[1]
 
-    # TESTING:
-    # for org in sD.vertex_list:
-    #     for neigh in  org.neighbors:
-    #         cv2.line(sD.img, org.getPos(), neigh.getPos(), (0, 255, 0), thickness=1)
-
-    # shortestPathBFS(source)
-    # vertexes_in_path = traverseShortestPath(target)
-    # sD.drawLines(vertexes_in_path)
+    shortestPathBFS(source)
+    vertexes_in_path = traverseShortestPath(target)
+    vertexes_in_path.append(0)
+    sD.drawLines(vertexes_in_path)
 
     # Display the results
-    # print('shortest path length: ', len(vertexes_in_path))
-    # print('shortest path: ', vertexes_in_path[::-1])
+    print('shortest path length: ', len(vertexes_in_path))
+    print('shortest path: ', vertexes_in_path[::-1])
 
+    cv2.imwrite('bfs.png', sD.img)
     cv2.imshow(image_filename, sD.img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
