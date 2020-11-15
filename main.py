@@ -33,8 +33,7 @@ class Vertex:
 
 class ShapeDetector:
     def __init__(self, img_path, img_length=700, img_height=500):
-        self.img_path = img_path
-        self.img = cv2.imread(self.img_path)
+        self.img = cv2.imread(img_path)
         self.img = cv2.resize(self.img, (img_length, img_height))
         self.shapes = []
         self.vertex_list = []
@@ -45,12 +44,12 @@ class ShapeDetector:
         mask_red = cv2.inRange(color_img, lower_red, upper_red)
         red_contours, h = cv2.findContours(mask_red, cv2.RETR_EXTERNAL,
                                            cv2.CHAIN_APPROX_SIMPLE)
-        self.shapes.append(red_contours)
+        self.shapes.extend(red_contours)
 
         mask_black = cv2.inRange(color_img, lower_black, upper_black)
         black_contours, h = cv2.findContours(mask_black, cv2.RETR_EXTERNAL,
                                              cv2.CHAIN_APPROX_SIMPLE)
-        self.shapes.append(black_contours)
+        self.shapes.extend(black_contours)
 
     def findVertices(self):
         for shp in self.shapes:
@@ -69,9 +68,9 @@ class ShapeDetector:
 
     def findPossiblePaths(self):
         for source in self.vertex_list:
-            center = (source.x, source.y)
-            cv2.putText(self.img, source.vert_id, center, cv2.FONT_HERSHEY_SIMPLEX, .4,
-                        (255, 0, 0), 1)
+            center = (source.x, source.y + 5)
+            cv2.putText(self.img, str(source.vert_id), center, cv2.FONT_HERSHEY_SIMPLEX, .7,
+                        (0, 0, 255), 2)
 
             for target in self.vertex_list:
                 if source != target and target not in source.neighbors:
@@ -153,18 +152,19 @@ def traverseShortestPath(target):
 
 
 def main():
-    sD = ShapeDetector('aima_maze.png')
+    image_filename = 'aima_maze.png'
+    sD = ShapeDetector(image_filename)
 
     # RGB value range of red and black objects
-    lower_red = np.array([50, 50, 50])
-    upper_red = np.array([255, 255, 255])
+    lower_red = np.array([200, 20, 30])
+    upper_red = np.array([240, 40, 50])
 
     lower_black = np.array([0, 0, 0])
-    upper_black = np.array([50, 50, 50])
+    upper_black = np.array([20, 20, 20])
 
     sD.findShapes(lower_red, upper_red, lower_black, upper_black)
     sD.findVertices()
-    # sD.findPossiblePaths()
+    sD.findPossiblePaths()
 
     # source = sD.vertex_list[0]
     # target = sD.vertex_list[1]
@@ -175,6 +175,10 @@ def main():
     # # Display the results
     # print('shortest path length: ', len(vertexes_in_path))
     # print('shortest path: ', vertexes_in_path[::-1])
+
+    cv2.imshow(image_filename, sD.img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 if __name__ == '__main__':
     main()
