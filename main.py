@@ -73,15 +73,11 @@ class ShapeDetector:
 
     def findPossiblePaths(self):
         for source in self.vertex_list:
-            # center = (source.x, source.y + 5)
-            # cv2.putText(self.img, str(source.vert_id), center, cv2.FONT_HERSHEY_SIMPLEX, .6,
-            #             (0, 240, 0), 2)
-
             for target in self.vertex_list:
                 if source != target and target not in source.neighbors:
                     if self.areConnectable(source, target):
                         source.addVertex(target)
-                        # target.addVertex(source)
+                        target.addVertex(source)
 
     def areConnectable(self, vertex1, vertex2, r=10):
         pt_a = np.array([vertex1.x, vertex1.y])
@@ -101,7 +97,7 @@ class ShapeDetector:
             if i <= 3 or i >= len(line) - 3:
                 continue
 
-            # After certain radius start checking pixel values
+            # Other way of checking the skip radius
             # if vertex1.getDistance(x, y) <= r or vertex2.getDistance(x, y) <= r:
             #     continue
                 
