@@ -27,8 +27,11 @@ class Vertex:
     def getNeighbors(self):
         return self.neighbors
 
-    def distance(self, x2, y2):
-        return math.sqrt((x2 - self.x1)**2 + (y2 - self.y1)**2)
+    def getDistance(self, x2, y2):
+        return math.sqrt((x2 - self.x)**2 + (y2 - self.y)**2)
+
+    def getPos(self):
+        return (self.x, self.y)
 
 
 class ShapeDetector:
@@ -52,62 +55,70 @@ class ShapeDetector:
         self.shapes.extend(black_contours)
 
     def findVertices(self):
-        for shp in self.shapes:
+        shp_id = 0
+        for shp_idx, shp in enumerate(self.shapes):
             approx = cv2.approxPolyDP(shp, 0.009 * cv2.arcLength(shp, True),
                                       True)
             points = approx.ravel()
-
-            shp_id = 0
-            for i in range(0, len(points), 2):
-                x = points[i]
-                y = points[i + 1]
+            for pt_idx in range(0, len(points), 2):
+                x = points[pt_idx]
+                y = points[pt_idx + 1]
 
                 nodo = Vertex(shp_id, x, y)
                 self.vertex_list.append(nodo)
                 shp_id += 1
+                
+                if shp_idx < 2:
+                    break
 
     def findPossiblePaths(self):
         for source in self.vertex_list:
-            center = (source.x, source.y + 5)
-            cv2.putText(self.img, str(source.vert_id), center, cv2.FONT_HERSHEY_SIMPLEX, .7,
-                        (0, 0, 255), 2)
+            # center = (source.x, source.y + 5)
+            # cv2.putText(self.img, str(source.vert_id), center, cv2.FONT_HERSHEY_SIMPLEX, .6,
+            #             (0, 240, 0), 2)
 
             for target in self.vertex_list:
                 if source != target and target not in source.neighbors:
                     if self.areConnectable(source, target):
                         source.addVertex(target)
-                        target.addVertex(source)
+                        # target.addVertex(source)
 
-    def areConnectable(self, vertex1, vertex2):
+    def areConnectable(self, vertex1, vertex2, r=10):
         pt_a = np.array([vertex1.x, vertex1.y])
         pt_b = np.array([vertex2.x, vertex2.y])
-        dist = int(self.vertex1.distance(vertex2.x, vertex2.y))
-        line = np.linspace(pt_a, pt_b, int(dist / 3), dtype="int")
+        dist = int(vertex1.getDistance(vertex2.x, vertex2.y))
+        line = np.linspace(pt_a, pt_b, int(dist / 2), dtype="int")
+        
+        vertex1.distance = dist
+        vertex2.distance = dist
 
         for i, point in enumerate(line):
-            if i <= 2 or i > len(line) - 2:
-                continue
-
             x = int(point[0])
             y = int(point[1])
             r, g, b = self.img[y][x]
+
+            # After certain radius start checking pixel values
+            if i <= 3 or i >= len(line) - 3:
+                continue
+
+            # After certain radius start checking pixel values
+            # if vertex1.getDistance(x, y) <= r or vertex2.getDistance(x, y) <= r:
+            #     continue
+                
             if self.isBlack(r, g, b):
                 return False
         return True
 
     def drawLines(self, path):
-        for idx, org_id in enumerate(path):
-            if idx == len(path) - 1:
+        for i, vert_id in enumerate(path):
+            if i == len(path) - 1:
                 break
 
-            des_id = path[idx + 1]
-            org = self.vertex_list[org_id]
-            des = self.vertex_list[des_id]
-            org_pos = (org.x, org.y)
-            des_pos = (des.x, des.y)
+            org = self.vertex_list[vert_id]
+            des = self.vertex_list[path[i + 1]]
 
-            cv2.line(self.img, org_pos, des_pos, (0, 255, 0), thickness=1)
-            cv2.circle(self.img, org_pos, 2, (0, 255, 255), thickness=2)
+            cv2.line(self.img, org.getPos(), des.getPos(), (0, 255, 0), thickness=1)
+            cv2.circle(self.img, org.getPos(), 2, (0, 255, 255), thickness=2)
 
     def isBlack(self, r, g, b):
         return r < 150 and g < 150 and b < 150
@@ -156,8 +167,8 @@ def main():
     sD = ShapeDetector(image_filename)
 
     # RGB value range of red and black objects
-    lower_red = np.array([200, 20, 30])
-    upper_red = np.array([240, 40, 50])
+    lower_red = np.array([100, 50, 50])
+    upper_red = np.array([255, 255, 255])
 
     lower_black = np.array([0, 0, 0])
     upper_black = np.array([20, 20, 20])
@@ -166,13 +177,19 @@ def main():
     sD.findVertices()
     sD.findPossiblePaths()
 
-    # source = sD.vertex_list[0]
-    # target = sD.vertex_list[1]
+    source = sD.vertex_list[0]
+    target = sD.vertex_list[1]
+
+    # TESTING:
+    # for org in sD.vertex_list:
+    #     for neigh in  org.neighbors:
+    #         cv2.line(sD.img, org.getPos(), neigh.getPos(), (0, 255, 0), thickness=1)
 
     # shortestPathBFS(source)
     # vertexes_in_path = traverseShortestPath(target)
+    # sD.drawLines(vertexes_in_path)
 
-    # # Display the results
+    # Display the results
     # print('shortest path length: ', len(vertexes_in_path))
     # print('shortest path: ', vertexes_in_path[::-1])
 
