@@ -100,20 +100,27 @@ class ShapeDetector:
                 return False
         return True
 
-    def drawLines(self, path):
+    def drawLines(self, path, drawDist=False, drawId=False, drawVertex=False):
         for i, vert_id in enumerate(path):
+            org = self.vertex_list[vert_id]
+
+            if drawId:
+                cv2.putText(self.img, str(org.vert_id), org.getPos(), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 169), 2)
+            if drawVertex:
+                cv2.circle(self.img, org.getPos(), 2, (0, 255, 255), thickness=2)
             if i == len(path) - 1:
                 break
-            org = self.vertex_list[vert_id]
+                
             des = self.vertex_list[path[i + 1]]
 
             midX = int((org.x + des.x) / 2)
             midY = int((org.y + des.y) / 2)
             dist = str(int(org.getDistance(des)))
-
+        
             cv2.line(self.img, org.getPos(), des.getPos(), (0, 255, 0), thickness=1)
-            cv2.circle(self.img, org.getPos(), 2, (0, 255, 255), thickness=2)
-            cv2.putText(self.img, dist, (midX, midY), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (184, 84, 39), 2)
+            
+            if drawDist:
+                cv2.putText(self.img, dist, (midX, midY), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (184, 84, 39), 2)
 
     def isBlack(self, r, g, b):
         return r < 150 and g < 150 and b < 150
@@ -162,19 +169,21 @@ def main():
     sD.findVertices()
     sD.findPossiblePaths()
 
+    # The first and second element are source and target
     source = sD.vertex_list[0]
     target = sD.vertex_list[1]
 
     shortestPathBFS(source)
     vertexes_in_path = traverseShortestPath(target)
     vertexes_in_path.append(0)
-    sD.drawLines(vertexes_in_path)
+    sD.drawLines(vertexes_in_path, True, True)
 
     # Display the results
     print('shortest path length: ', len(vertexes_in_path))
-    print('shortest path: ', vertexes_in_path[::-1])
+    print('shortest path vertexs IDs: ', vertexes_in_path[::-1])
 
-    cv2.imwrite('bfs.png', sD.img)
+    # Save the image
+    # cv2.imwrite('bfs.png', sD.img)
     cv2.imshow(image_filename, sD.img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
