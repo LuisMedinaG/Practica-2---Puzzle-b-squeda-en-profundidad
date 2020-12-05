@@ -206,7 +206,6 @@ def AStar(start, goal):
 
     print("No se encontro camino")
 
-
 def bestFirst(start):
     if start is None:
         return None
@@ -223,7 +222,6 @@ def bestFirst(start):
                 neighbor.previous = curr
                 queue.insert(0, neighbor)
         queue = (sorted(queue, key=lambda x: x.curr_dist, reverse=True))
-
 
 def traverseShortestPath(target):
     vertexes_in_path = []
