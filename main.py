@@ -11,33 +11,25 @@ class Vertex:
         self.y = y
 
         self.neighbors = []
-        self.distance = -1
         self.curr_dist = math.inf
         self.previous = None
 
-        self.gscore = math.inf
-        self.fscore = math.inf
+        self.G = math.inf
+        self.F = math.inf
         self.closed = False
-        self.out_openset = True
+        self.notin_openset = True
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
 
-    def __str__(self):
-        return f"ID: {self.vert_id} COORD: ({self.x},{self.y})"
-
-    def __repr__(self):
-        return f"ID: {self.vert_id} COORD: ({self.x},{self.y})"
-
     def __lt__(self, b):
-        return self.fscore < b.fscore
+        return self.F < b.F
 
     def addVertex(self, vertex):
         self.neighbors.append(vertex)
 
     def getDistance(self, other_vertex):
-        return math.sqrt((other_vertex.x - self.x)**2 +
-                         (other_vertex.y - self.y)**2)
+        return math.hypot(other_vertex.x - self.x, other_vertex.y - self.y)
 
     def getPos(self):
         return (self.x, self.y)
@@ -48,7 +40,7 @@ class ShapeDetector:
         self.img = cv2.imread(img_path)
         self.img = cv2.resize(self.img, (img_length, img_height))
         self.shapes = []
-        self.vertex_list = []
+        self.vertices = []
 
     def findShapes(self, lower_red, upper_red, lower_black, upper_black):
         color_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
@@ -74,15 +66,15 @@ class ShapeDetector:
                 y = points[pt_idx + 1]
 
                 nodo = Vertex(shp_id, x, y)
-                self.vertex_list.append(nodo)
+                self.vertices.append(nodo)
                 shp_id += 1
 
                 if shp_idx < 2:
                     break
 
     def findPossiblePaths(self):
-        for source in self.vertex_list:
-            for target in self.vertex_list:
+        for source in self.vertices:
+            for target in self.vertices:
                 if source != target and target not in source.neighbors:
                     if self.areConnectable(source, target):
                         source.addVertex(target)
@@ -113,7 +105,7 @@ class ShapeDetector:
 
     def drawLines(self, path, drawDist=False, drawId=False, drawVertex=False):
         for i, vert_id in enumerate(path):
-            org = self.vertex_list[vert_id]
+            org = self.vertices[vert_id]
 
             if drawId:
                 cv2.putText(self.img, str(org.vert_id), org.getPos(),
@@ -124,7 +116,7 @@ class ShapeDetector:
             if i == len(path) - 1:
                 break
 
-            des = self.vertex_list[path[i + 1]]
+            des = self.vertices[path[i + 1]]
 
             midX = int((org.x + des.x) / 2)
             midY = int((org.y + des.y) / 2)
@@ -138,80 +130,59 @@ class ShapeDetector:
                             cv2.FONT_HERSHEY_SIMPLEX, 0.5, (184, 84, 39), 2)
 
     def isBlack(self, r, g, b):
-        return r < 150 and g < 150 and b < 150
+        return r < 20 and g < 20 and b < 20
 
 
-def shortestPathBFS(start):
-    """
-    Shortest Path - Breadth First Search
-    """
-    if start is None:
-        return None
-
-    # keep track of nodes to be checked
-    queue = [start]
-    start.curr_dist = 0
-
-    while queue:
-        curr = queue.pop()
-        for neighbor in curr.neighbors:
-            next_distance = curr.curr_dist + curr.getDistance(neighbor)
-            if neighbor.curr_dist == math.inf or neighbor.curr_dist > next_distance:
-                neighbor.curr_dist = next_distance
-                neighbor.previous = curr
-                queue.insert(0, neighbor)
-
-
-def heuristic(cell, goal):
-    """computes the 'direct' distance between two (x,y) tuples"""
+def heuristic(cell, goal, kruskal=False):
+    if kruskal:
+        return 0
     return math.hypot(goal.x - cell.x, goal.y - cell.y)
 
 
-def AStar(start, goal):
+def AStar(start, goal, kruskal=False):
     if start == goal:
-        return
+        return [start]
 
-    start.fscore = heuristic(start, goal)
-    start.gscore = 0
-
+    start.F = heuristic(start, goal, kruskal)
+    start.G = 0
     open_set = []
     heapq.heappush(open_set, start)
 
     while open_set:
         current = heapq.heappop(open_set)
         if current == goal:
-            return
+            return traverseShortestPath(current)
 
-        current.out_openset = True
+        current.notin_openset = True
         current.closed = True
-
         for neighbor in current.neighbors:
             if neighbor.closed:
                 continue
-            
-            tentative_gscore = current.gscore + current.getDistance(neighbor)
-            if tentative_gscore >= neighbor.gscore:
+
+            tentative_gscore = current.G + current.getDistance(neighbor)
+            if tentative_gscore >= neighbor.G:
                 continue
 
             neighbor.previous = current
-            neighbor.gscore = tentative_gscore
-            neighbor.fscore = tentative_gscore + heuristic(neighbor, goal)
+            neighbor.G = tentative_gscore
+            neighbor.F = tentative_gscore + heuristic(neighbor, goal, kruskal)
 
-            if neighbor.out_openset:
-                neighbor.out_openset = False
+            if neighbor.notin_openset:
+                neighbor.notin_openset = False
                 heapq.heappush(open_set, neighbor)
             else:
                 open_set.remove(neighbor)
                 heapq.heappush(open_set, neighbor)
 
     print("No se encontro camino")
+    return []
 
 
 def bestFirst(start):
     if start is None:
-        return None
-        
-    # keep track of nodes to be checked
+        return []
+
+    # keep track of vertices to be checked
     queue = [start]
     start.curr_dist = 0
     while queue:
@@ -223,54 +194,59 @@ def bestFirst(start):
                 neighbor.previous = curr
                 queue.insert(0, neighbor)
         queue = (sorted(queue, key=lambda x: x.curr_dist, reverse=True))
-
+    return traverseShortestPath(curr)
 
 def traverseShortestPath(target):
     vertexes_in_path = []
-
     while target.previous:
         vertexes_in_path.append(target.vert_id)
         target = target.previous
-
+    vertexes_in_path.append(target.vert_id)
     return vertexes_in_path
 
 
 def main():
-    image_filename = 'aima_maze_modified.png'
-    sD = ShapeDetector(image_filename)
+    img = 'aima_maze_modified.png'
+    sD = ShapeDetector(img)
 
     # RGB value range of red and black objects
     lower_red = np.array([100, 50, 50])
     upper_red = np.array([255, 255, 255])
-
     lower_black = np.array([0, 0, 0])
     upper_black = np.array([20, 20, 20])
 
     sD.findShapes(lower_red, upper_red, lower_black, upper_black)
     sD.findVertices()
     sD.findPossiblePaths()
-
-    # The first and second element are source and target
-    source = sD.vertex_list[0]
-    target = sD.vertex_list[1]
-
-    print(source)
-    print(target)
-    # print(sD.vertex_list)
     
-    # bestFirst(source)
-    AStar(source, target)
-    vertexes_in_path = traverseShortestPath(target)
-    vertexes_in_path.append(0)
-    sD.drawLines(vertexes_in_path, True, True)
+    if len(sD.vertices) < 2:
+        print("No hat suficientes vertices")
+        return
+
+    # --------------------------------------------------
+    # The first and second element are source and target
+    source = sD.vertices[0]
+    target = sD.vertices[1]
+
+    # ----- ALGORITHMS -----
+    # Uncomment just the one is going to be used
+    # 1. Best First
+    # path = bestFirst(source)
+    # 2. A Star (A*)
+    path = AStar(source, target)
+    # 3. Kruskal
+    # path = AStar(source, target, True) 
+    # --------------------------------------------------
+    
+    sD.drawLines(path, True, True)
 
     # Display the results
-    print('shortest path length: ', len(vertexes_in_path))
-    print('shortest path vertexs IDs: ', vertexes_in_path[::-1])
+    print('shortest path length: ', len(path))
+    print('shortest path vertexs IDs: ', path[::-1])
 
     # Save the image
-    cv2.imwrite('bfs.png', sD.img)
-    cv2.imshow(image_filename, sD.img)
+    # cv2.imwrite('a_star.png', sD.img)
+    cv2.imshow(img, sD.img)
     cv2.waitKey(0)
     cv2.destroyAllWindows()
 
