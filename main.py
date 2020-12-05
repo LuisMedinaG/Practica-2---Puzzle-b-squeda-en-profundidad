@@ -1,6 +1,7 @@
 import numpy as np
 import heapq
 import math
+import time
 import cv2
 
 
@@ -206,7 +207,7 @@ def traverseShortestPath(target):
 
 
 def main():
-    img = 'aima_maze_modified.png'
+    img = 'aima_maze.png'
     sD = ShapeDetector(img)
 
     # RGB value range of red and black objects
@@ -229,13 +230,22 @@ def main():
     target = sD.vertices[1]
 
     # ----- ALGORITHMS -----
-    # Uncomment just the one is going to be used
+    # *** Uncomment just the one is going to be used ***
     # 1. Best First
+    # start = time.process_time()
     # path = bestFirst(source)
-    # 2. A Star (A*)
-    path = AStar(source, target)
-    # 3. Kruskal
+    # print(f"Duracion BestFirst: {time.process_time() - start}")
+    
+    # 2. Kruskal
+    # start = time.process_time()
     # path = AStar(source, target, True) 
+    # print(f"Duracion Kruskal: {time.process_time() - start}")
+
+    # 3. A Star (A*)
+    start = time.process_time()
+    path = AStar(source, target)
+    print(f"Duracion A*: {time.process_time() - start}")
+
     # --------------------------------------------------
     
     sD.drawLines(path, True, True)
