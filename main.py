@@ -1,218 +1,276 @@
 import numpy as np
-from collections import defaultdict
+import heapq
 import math
 import cv2
-import copy
 
 
-class vertex:
-    def __init__(self, id, x, y):
-        self.id = str(id)
+class Vertex:
+    def __init__(self, vert_id, x, y):
+        self.vert_id = vert_id
         self.x = x
         self.y = y
-        self.lista_adyancecia = []
+
+        self.neighbors = []
+        self.distance = -1
+        self.curr_dist = math.inf
+        self.previous = None
+
+        self.gscore = math.inf
+        self.fscore = math.inf
+        self.closed = False
+        self.out_openset = True
 
     def __eq__(self, other):
         return self.x == other.x and self.y == other.y
 
     def __str__(self):
-        return f"({self.x},{self.y})"
+        return f"ID: {self.vert_id} COORD: ({self.x},{self.y})"
 
     def __repr__(self):
-        return f"({self.x},{self.y})"
+        return f"ID: {self.vert_id} COORD: ({self.x},{self.y})"
+
+    def __lt__(self, b):
+        return self.fscore < b.fscore
+
+    def addVertex(self, vertex):
+        self.neighbors.append(vertex)
+
+    def getDistance(self, other_vertex):
+        return math.sqrt((other_vertex.x - self.x)**2 +
+                         (other_vertex.y - self.y)**2)
+
+    def getPos(self):
+        return (self.x, self.y)
 
 
-class Graph:
-    def __init__(self):
-        #self.V = vertices
-        self.graph = defaultdict(list)
+class ShapeDetector:
+    def __init__(self, img_path, img_length=700, img_height=500):
+        self.img = cv2.imread(img_path)
+        self.img = cv2.resize(self.img, (img_length, img_height))
+        self.shapes = []
+        self.vertex_list = []
 
-    def addEdge(self, u, v):
-        self.graph[u].append(v)
+    def findShapes(self, lower_red, upper_red, lower_black, upper_black):
+        color_img = cv2.cvtColor(self.img, cv2.COLOR_BGR2HSV)
 
+        mask_red = cv2.inRange(color_img, lower_red, upper_red)
+        red_contours, h = cv2.findContours(mask_red, cv2.RETR_EXTERNAL,
+                                           cv2.CHAIN_APPROX_SIMPLE)
+        self.shapes.extend(red_contours)
 
-def findShapes(img):
-    color = cv2.cvtColor(img, cv2.COLOR_BGR2HSV)
+        mask_black = cv2.inRange(color_img, lower_black, upper_black)
+        black_contours, h = cv2.findContours(mask_black, cv2.RETR_EXTERNAL,
+                                             cv2.CHAIN_APPROX_SIMPLE)
+        self.shapes.extend(black_contours)
 
-    lower_red = np.array([50, 50, 50])
-    upper_red = np.array([255, 255, 255])
+    def findVertices(self):
+        shp_id = 0
+        for shp_idx, shp in enumerate(self.shapes):
+            approx = cv2.approxPolyDP(shp, 0.009 * cv2.arcLength(shp, True),
+                                      True)
+            points = approx.ravel()
+            for pt_idx in range(0, len(points), 2):
+                x = points[pt_idx]
+                y = points[pt_idx + 1]
 
-    lower_black = np.array([0, 0, 0])
-    upper_black = np.array([50, 50, 50])
+                nodo = Vertex(shp_id, x, y)
+                self.vertex_list.append(nodo)
+                shp_id += 1
 
-    mask_red = cv2.inRange(color, lower_red, upper_red)
-    red_contours, h = cv2.findContours(mask_red, cv2.RETR_EXTERNAL,
-                                       cv2.CHAIN_APPROX_SIMPLE)
+                if shp_idx < 2:
+                    break
 
-    mask_black = cv2.inRange(color, lower_black, upper_black)
-    black_contours, h = cv2.findContours(mask_black, cv2.RETR_EXTERNAL,
-                                         cv2.CHAIN_APPROX_SIMPLE)
+    def findPossiblePaths(self):
+        for source in self.vertex_list:
+            for target in self.vertex_list:
+                if source != target and target not in source.neighbors:
+                    if self.areConnectable(source, target):
+                        source.addVertex(target)
+                        target.addVertex(source)
 
-    return red_contours, black_contours
+    def areConnectable(self, vertex1, vertex2, r=10):
+        pt_a = np.array([vertex1.x, vertex1.y])
+        pt_b = np.array([vertex2.x, vertex2.y])
+        dist = int(vertex1.getDistance(vertex2))
+        line = np.linspace(pt_a, pt_b, int(dist / 2), dtype="int")
 
+        for i, point in enumerate(line):
+            x = int(point[0])
+            y = int(point[1])
+            r, g, b = self.img[y][x]
 
-def makeGraph(red_contours, black_contours):
-    vertex_list = []
-    
-    if red_contours:
-        org = red_contours[0]
-        approx = cv2.approxPolyDP(org, 0.009 * cv2.arcLength(org, True), True)
-        n = approx.ravel()
-        x = n[-6]
-        y = n[-5]
-        nodo = vertex(len(vertex_list), x, y)
-        vertex_list.append(nodo)
+            # After certain radius start checking pixel values
+            if i <= 3 or i >= len(line) - 3:
+                continue
 
-        des = red_contours[1]
-        approx = cv2.approxPolyDP(des, 0.009 * cv2.arcLength(des, True), True)
-        n = approx.ravel()
-        x = n[-2]
-        y = n[-1]
-        nodo = vertex(len(vertex_list), x, y)
-        vertex_list.append(nodo)
+            # Other way of checking the skip radius
+            # if vertex1.getDistance(x, y) <= r or vertex2.getDistance(x, y) <= r:
+            #     continue
 
-    for cnt in black_contours:
-        approx = cv2.approxPolyDP(cnt, 0.015 * cv2.arcLength(cnt, True), True)
+            if self.isBlack(r, g, b):
+                return False
+        return True
 
-        n = approx.ravel()
-        i = 0
-        for j in n:
-            if (i % 2 == 0):
-                x = n[i]
-                y = n[i + 1]
-                nodo = vertex(len(vertex_list), x, y)
-                vertex_list.append(nodo)
-            i = i + 1
+    def drawLines(self, path, drawDist=False, drawId=False, drawVertex=False):
+        for i, vert_id in enumerate(path):
+            org = self.vertex_list[vert_id]
 
-    return vertex_list
+            if drawId:
+                cv2.putText(self.img, str(org.vert_id), org.getPos(),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 169), 2)
+            if drawVertex:
+                cv2.circle(
+                    self.img, org.getPos(), 2, (0, 255, 255), thickness=2)
+            if i == len(path) - 1:
+                break
 
+            des = self.vertex_list[path[i + 1]]
 
-def findObstacles(vertex_list, img):
-    for origen in vertex_list:
-        cv2.putText(img, origen.id, (origen.x, origen.y), cv2.FONT_HERSHEY_SIMPLEX, 1, (0,0,0), 1)
+            midX = int((org.x + des.x) / 2)
+            midY = int((org.y + des.y) / 2)
+            dist = str(int(org.getDistance(des)))
 
-        for destino in vertex_list:
-            if origen != destino and destino not in origen.lista_adyancecia:
-                if areConectable(origen, destino, img):
-                    origen.lista_adyancecia.append(destino)
-                    destino.lista_adyancecia.append(origen)
+            cv2.line(
+                self.img, org.getPos(), des.getPos(), (0, 255, 0), thickness=1)
 
+            if drawDist:
+                cv2.putText(self.img, dist, (midX, midY),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (184, 84, 39), 2)
 
-def hypot(x1, y1, x2, y2):
-    return math.sqrt((x2 - x1)**2 + (y2 - y1)**2)
-
-
-def areConectable(origen, destino, img):
-    pt_a = np.array([origen.x, origen.y])
-    pt_b = np.array([destino.x, destino.y])
-    dist = int(hypot(origen.x, origen.y, destino.x, destino.y))
-    line = np.linspace(pt_a, pt_b, int(dist / 3), dtype="int")
-
-    for i, point in enumerate(line):
-        if i <= 3 or i > len(line) - 3:
-            continue
-        x = int(point[0])
-        y = int(point[1])
-
-        r, g, b = img[y][x]
-        if isBlack(r, g, b):
-            return False
-    return True
-
-
-def isBlack(r, g, b):
-    return r < 50 and g < 50 and b < 50
+    def isBlack(self, r, g, b):
+        return r < 150 and g < 150 and b < 150
 
 
-def dfs(root, goal):
-    stack = [(root, [root.id])]
-    visited = set()
-    while stack:
-        (vertex, path) = stack.pop()
-        if vertex.id not in visited:
-            if vertex == goal:
-                return path
-            visited.add(vertex.id)
-            for neighbor in reversed(vertex.lista_adyancecia):
-                stack.append((neighbor, path + [neighbor.id]))
-    return None
+def shortestPathBFS(start):
+    """
+    Shortest Path - Breadth First Search
+    """
+    if start is None:
+        return None
+
+    # keep track of nodes to be checked
+    queue = [start]
+    start.curr_dist = 0
+
+    while queue:
+        curr = queue.pop()
+        for neighbor in curr.neighbors:
+            next_distance = curr.curr_dist + curr.getDistance(neighbor)
+            if neighbor.curr_dist == math.inf or neighbor.curr_dist > next_distance:
+                neighbor.curr_dist = next_distance
+                neighbor.previous = curr
+                queue.insert(0, neighbor)
 
 
-def toDict(vertex_list):
-    #g = Graph()
-    graph = {}
-    for vertex in vertex_list:
-        ver = vertex
-        print(vertex)
-        for adyacente in vertex.lista_adyancecia:
-            print(adyacente)
-            ady = adyacente
-            #graph["V" + str(ver)] = str(ady)
-            #print("Vertex ", ver)
-            #print("Ady ",ady)
-            #g.addEdge(ver,ady)
-    #return g.graph
-    print(graph)
+def heuristic(cell, goal):
+    """computes the 'direct' distance between two (x,y) tuples"""
+    return math.hypot(goal.x - cell.x, goal.y - cell.y)
 
 
-def DLS(lista, root, target, maxDepth):
-    path = set()
-    if root == target: return True
+def AStar(start, goal):
+    if start == goal:
+        return
 
-    if maxDepth <= 0: return False
+    start.fscore = heuristic(start, goal)
+    start.gscore = 0
 
-    for i in lista[root]:
-        path.add(i)
-        #print('i =  %d / target = %d / maxDepth = %d' % (i, target, maxDepth - 1))
-        if (DLS(lista, i, target, maxDepth - 1)):
-            return True
-    #print(path)
-    return False
+    open_set = []
+    heapq.heappush(open_set, start)
 
+    while open_set:
+        current = heapq.heappop(open_set)
+        if current == goal:
+            return
 
-def IDDFS(lista, root, target, maxDepth):
-    for i in range(maxDepth):
-        if (DLS(lista, root, target, i)):
-            return True
-    return False
+        current.out_openset = True
+        current.closed = True
 
+        for neighbor in current.neighbors:
+            if neighbor.closed:
+                continue
+            
+            tentative_gscore = current.gscore + current.getDistance(neighbor)
+            if tentative_gscore >= neighbor.gscore:
+                continue
 
-def drawLines(vertex_list, img):
-    for i, vertex in enumerate(vertex_list):
-        # Cambiar por destino
-        cv2.line(
-            img, (vertex.x, vertex.y), (vertex.x, vertex.y), (0, 255, 0),
-            thickness=1)
+            neighbor.previous = current
+            neighbor.gscore = tentative_gscore
+            neighbor.fscore = tentative_gscore + heuristic(neighbor, goal)
+
+            if neighbor.out_openset:
+                neighbor.out_openset = False
+                heapq.heappush(open_set, neighbor)
+            else:
+                open_set.remove(neighbor)
+                heapq.heappush(open_set, neighbor)
+
+    print("No se encontro camino")
+
+def bestFirst(start):
+    if start is None:
+        return None
+        
+    # keep track of nodes to be checked
+    queue = [start]
+    start.curr_dist = 0
+    while queue:
+        curr = queue.pop()
+        for neighbor in curr.neighbors:
+            next_distance = curr.curr_dist + curr.getDistance(neighbor)
+            if neighbor.curr_dist == math.inf or neighbor.curr_dist > next_distance:
+                neighbor.curr_dist = next_distance
+                neighbor.previous = curr
+                queue.insert(0, neighbor)
+        queue = (sorted(queue, key=lambda x: x.curr_dist, reverse=True))
+
+def traverseShortestPath(target):
+    vertexes_in_path = []
+
+    while target.previous:
+        vertexes_in_path.append(target.vert_id)
+        target = target.previous
+
+    return vertexes_in_path
 
 
 def main():
-    path = 'aima_maze.png'
-    img = cv2.imread(path)
-    img = cv2.resize(img, (700, 500))
+    image_filename = 'aima_maze_modified.png'
+    sD = ShapeDetector(image_filename)
 
-    red_contours, black_contours = findShapes(img)
-    vertex_list = makeGraph(red_contours, black_contours)
+    # RGB value range of red and black objects
+    lower_red = np.array([100, 50, 50])
+    upper_red = np.array([255, 255, 255])
 
-    if vertex_list and red_contours:
-        findObstacles(vertex_list, img)
+    lower_black = np.array([0, 0, 0])
+    upper_black = np.array([20, 20, 20])
 
-        # ORIGEN Y DESTINO DEL MAPA
-        root = vertex_list[0]
-        target = vertex_list[1]
+    sD.findShapes(lower_red, upper_red, lower_black, upper_black)
+    sD.findVertices()
+    sD.findPossiblePaths()
 
-        # Implenetacion del algoritmo DFS
-        # path = dfs(root, target)
-        # print(path)
-        # drawLines(path, img)
+    # The first and second element are source and target
+    source = sD.vertex_list[0]
+    target = sD.vertex_list[1]
 
-        # Implenetacion del algoritmo IDDFS
-        ad_list = toDict(vertex_list)
-        print(ad_list)
-        IDDFS(ad_list, root, target, 1000)
+    print(source)
+    print(target)
+    # print(sD.vertex_list)
+    
+    # bestFirst(source)
+    AStar(source, target)
+    vertexes_in_path = traverseShortestPath(target)
+    vertexes_in_path.append(0)
+    sD.drawLines(vertexes_in_path, True, True)
 
-        cv2.imshow(path, img)
-        cv2.waitKey(0)
-        cv2.destroyAllWindows()
+    # Display the results
+    print('shortest path length: ', len(vertexes_in_path))
+    print('shortest path vertexs IDs: ', vertexes_in_path[::-1])
+
+    # Save the image
+    cv2.imwrite('bfs.png', sD.img)
+    cv2.imshow(image_filename, sD.img)
+    cv2.waitKey(0)
+    cv2.destroyAllWindows()
 
 
 if __name__ == '__main__':
